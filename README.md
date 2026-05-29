@@ -1,6 +1,6 @@
 # Adapted-circlize-to-visualize-regulator-and-target-gene-associations
 
-Notes/ file information: 
+<ins>Notes/ file information: <ins>
 
 File named "original_code" made by Maya Bozzo-Rey using open source tutorials on the "circlize" package in R.
 Original associations file used in "original_code" contained genes related to glycolysis, TCA cycle and glutaminolysis. As the project evolved, the selected list of genes was altered to focus on glycolysis and glucose transporters only. As well, list of epigenetic enzymes was altered following analysis by GeneCards to determine function of the enzymes. 
