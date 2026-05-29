@@ -1,0 +1,124 @@
+library(readxl)
+library(circlize)
+
+# Import file (cut down to only have glucose genes)
+data <- read_excel("circle plot - glucose.xlsx")
+
+# Convert Yes/No to 0/1
+matrix_data <- as.matrix(data[, -1])
+matrix_data[matrix_data == "Yes"] <- 1
+matrix_data[matrix_data == "No"] <- 0
+matrix_data <- apply(matrix_data, 2, as.numeric)
+rownames(matrix_data) <- data$Target
+
+# EDIT: genes to highlight (their RED links become less transparent)
+highlight_genes <- c("PFKP", "HK2", "PKM")  # <-- EDIT THIS TO PICK THE GENES TO BE DARKER
+
+# 1. Define pathways
+tca_genes <- c("IDH3G", "CS", "IDH2", "FH", "IDH3A", "PDHB", "PDHA (PDHA1)", "MDH2", "SDHA", "IDH3B", "PDHX", "SUCLA2", "ACO2")
+glycolysis_genes <- c("ENO1", "GAPDH", "ALDOA", "PKM", "HK2", "HK1", "LDHB", "LDHA", "PKLR", "PGM1", "PGK2", "GPI", "PFKP")
+glutaminolysis_genes <- c("GLUD1", "GLS", "OGDH")
+glucose_transport_genes <- c("GLUT2 (SLC2A2)", "SGLT2 (SLC5A2)", "GLUT1 (SLC2A1)", "SGLT1 (SLC5A1)")
+glutamine_transport_genes <- c("SLC38A1", "SLC38A2", "SLC1A5", "SLC38A3")
+
+# 2. Define enzyme groups
+activating_markers <- c("KMT3G (NSD2)", "KMT2H (ASH1L)", "KDM4A", "KMT2D (MLL4)", "KDM4C", "ASH2L", "KMT2A (MLL1)",
+                        "KMT3A (SETD2)", "KDM6A (UTX)", "KDM6B (JMJD3)", "KMT2B (MLL2)")
+repressing_markers <- c("KDM1A (LSD1)", "KDM2B", "KDM5A",
+                        "KDM5C", "KDM5D", "KDM5B", "KMT6B (EZH1)",
+                        "KMT6A (EZH2)")
+
+# 3. Order data
+ordered_sectors <- c(
+  intersect(glycolysis_genes, rownames(matrix_data)),
+  intersect(tca_genes, rownames(matrix_data)),
+  intersect(glutaminolysis_genes, rownames(matrix_data)),
+  intersect(glucose_transport_genes, rownames(matrix_data)),
+  intersect(glutamine_transport_genes, rownames(matrix_data)),
+  setdiff(rownames(matrix_data),
+          c(glycolysis_genes, tca_genes, glutaminolysis_genes,
+            glucose_transport_genes, glutamine_transport_genes)),
+  intersect(activating_markers, colnames(matrix_data)),
+  intersect(repressing_markers, colnames(matrix_data)),
+  setdiff(colnames(matrix_data),
+          c(activating_markers, repressing_markers))
+)
+
+# 4. Colours
+gene_colors <- c(
+  rep("skyblue", length(glycolysis_genes)),
+  rep("orchid", length(tca_genes)),
+  rep("forestgreen", length(glutaminolysis_genes)),
+  rep("gold", length(glucose_transport_genes)),
+  rep("darkorange", length(glutamine_transport_genes))
+)
+names(gene_colors) <- c(glycolysis_genes, tca_genes, glutaminolysis_genes,
+                        glucose_transport_genes, glutamine_transport_genes)
+
+marker_track_colors <- c(
+  rep("firebrick", length(activating_markers)),
+  rep("navy", length(repressing_markers))
+)
+names(marker_track_colors) <- c(activating_markers, repressing_markers)
+
+all_colors <- c(gene_colors, marker_track_colors)
+missing <- setdiff(ordered_sectors, names(all_colors))
+if (length(missing) > 0) {
+  all_colors <- c(all_colors, setNames(rep("gray", length(missing)), missing))
+}
+sector_colors <- all_colors[ordered_sectors]
+
+5. Link colours (same as enzyme link colours - only change is transparency)
+act_cols <- intersect(activating_markers, colnames(matrix_data))
+rep_cols <- intersect(repressing_markers, colnames(matrix_data))
+
+base_alpha <- 0.2        
+highlight_alpha <- 1.0   # darker red for selected genes only
+
+
+link_colors_matrix <- matrix("grey90",
+                             nrow = nrow(matrix_data), ncol = ncol(matrix_data),
+                             dimnames = dimnames(matrix_data))
+
+# Red links (activating) and blue links (repressing) with base alpha
+if (length(act_cols) > 0) link_colors_matrix[, act_cols] <- adjustcolor("firebrick", alpha.f = base_alpha)
+if (length(rep_cols) > 0) link_colors_matrix[, rep_cols] <- adjustcolor("navy", alpha.f = base_alpha)
+
+keep_genes <- intersect(trimws(highlight_genes), trimws(rownames(matrix_data)))
+if (length(keep_genes) == 0) {
+  stop("highlight_genes didn't match rownames(matrix_data). Copy/paste exact gene names from rownames(matrix_data).")
+}
+
+# Make certain genes darker
+if (length(act_cols) > 0) link_colors_matrix[keep_genes, act_cols] <- adjustcolor("firebrick", alpha.f = highlight_alpha)
+
+# 6. Plot graph
+#pdf("circle_plot_gene_highlight.pdf", width = 11, height = 10)
+png("circle_plot_gene_highlight.png", width = 4000, height = 3000, res = 300)
+
+circos.clear()
+
+chordDiagram(matrix_data,
+             grid.col = sector_colors,
+             col = link_colors_matrix,
+             order = ordered_sectors,
+             transparency = 0,      # IMPORTANT: we control alpha in colors now
+             link.border = NA,
+             annotationTrack = "grid",
+             preAllocateTracks = list(track.height = 0.2))
+
+circos.track(track.index = 1, panel.fun = function(x, y) {
+  circos.text(CELL_META$xcenter, CELL_META$ylim[1], CELL_META$sector.index,
+              facing = "clockwise", niceFacing = TRUE, adj = c(0, 0.5), cex=1.2)
+}, bg.border = NA)
+
+legend("bottomright",
+       legend = c("Glycolysis", "Glucose Transport", "Activating Markers", "Repressing Markers"),
+       fill = c("skyblue", "gold", "firebrick", "navy"),
+       cex = 1,
+       bty = "n")
+
+dev.off()
+
+cat("Saved: circle_plot_gene_highlight.pdf\n")
+cat("Highlighted genes:", paste(keep_genes, collapse = ", "), "\n")
