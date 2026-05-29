@@ -2,7 +2,7 @@ library(readxl)
 library(circlize)
 
 # Import the Excel file
-data <- read_excel("circle plot - glucose.xlsx")
+data <- read_excel("updated circle plot - glucose.xlsx")
 
 # Convert the data to a matrix for the chord diagram
 matrix_data <- as.matrix(data[, -1])
